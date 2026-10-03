@@ -1,6 +1,6 @@
 # VeriBTS
 
-This repository provides implementations and experimental artifacts for six instances of **VeriBTS: A Framework for Behavior Tree Synthesis across Specifications and Verifiers**, an LLM-driven, verifier-guided framework for behavior tree synthesis:
+This repository provides implementations and experimental artifacts for six instances of **VeriBTS: A General LLM-Enabled CEGIS Framework for Behavior Tree Generation**, an LLM-driven, verifier-guided framework for behavior tree synthesis:
 
 - **Examples:** positive and negative example consistency.
 - **Goal:** finite-time goal attainment.
