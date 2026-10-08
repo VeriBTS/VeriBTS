@@ -60,8 +60,8 @@ Image layout (`/app`):
 /app/pdpl_baselines-linux        Goal instance             → results in /app/results
 /app/BTRun-linux/BTRun           LTL–BB instance           → results_hard/ results_complex/
 /app/BtBotRun/BtBotRun           Examples instance + BtBot → BtBotResults/
-/app/llmbt-runner                LTL–Direct instance       → out-root = CWD
-/app/llmbt-uppaal                MITL–TA instance          → out-root = CWD
+/app/llmbt-runner                LTL–Direct instance       → pass --out-root /app/results
+/app/llmbt-uppaal                MITL–TA instance          → pass --out /app/results
 /app/stats/                      statistics scripts (§6)
 /app/results/                    default results directory (mount a host dir here)
 ```
@@ -81,7 +81,11 @@ docker run --rm veribts/btltl-baselines:1.3 bash -c '
 Each self-test prints a per-component report and must end without errors
 (`SELFTEST PASSED` for `llmbt-runner`, `[selftest] passed (offline +
 engine)` for `llmbt-uppaal`). The Goal (PDPL) and LTL–CSP runners have no
-separate self-test command; §5 shows one-task pilots for them.
+separate self-test command; §5 shows one-task pilots for them. Note: the
+gateway section of `llmbt-runner selftest` (part 2/3) depends on the
+third-party `4sapi.org` service being up; an `HTTP 502` there indicates an
+upstream outage — the verifier (1/3) and task-card (3/3) sections still
+validate the artifact.
 
 Optional connectivity test (a few cents of LLM traffic, one minimal call per
 API key): `docker run --rm veribts/btltl-baselines:1.3 /app/BtBotRun/BtBotRun ping`.
@@ -118,10 +122,16 @@ docker run --rm -v $PWD/results:/app/results veribts/btltl-baselines:1.3 \
 **(b) LTL–CSP — PAT-backed runner**
 
 ```bash
+# pilot: 1 task, 1 repetition
 docker run --rm -v $PWD/results:/app/results veribts/btltl-baselines:1.3 \
-    /app/ltl4bt_baselines-linux --bench bt70          # Table 3 "LTL–CSP"
+    /app/ltl4bt_baselines-linux --bench bt70 --models gpt-4o --variants ce --rounds 1 --limit 1
+
+# full runs -- pass --models explicitly (the runner's DEFAULT model set is
+# gpt-5.5/claude-opus-4-6/claude-sonnet-4-6, NOT the paper's trio)
 docker run --rm -v $PWD/results:/app/results veribts/btltl-baselines:1.3 \
-    /app/ltl4bt_baselines-linux --bench bt10          # Table 4 "LTL–CSP"
+    /app/ltl4bt_baselines-linux --bench bt70 --models gpt-4o gpt-5.5 claude-opus-4-6   # Table 3 "LTL–CSP"
+docker run --rm -v $PWD/results:/app/results veribts/btltl-baselines:1.3 \
+    /app/ltl4bt_baselines-linux --bench bt10 --models gpt-4o gpt-5.5 claude-opus-4-6   # Table 4 "LTL–CSP"
 ```
 
 **(c) LTL–BB — BTRun (BehaVerify/NuSMV)**
@@ -152,21 +162,31 @@ docker run --rm -w /app/BtBotRun -v $PWD/btbot:/app/BtBotRun/BtBotResults \
 **(e) LTL–Direct — llmbt-runner**
 
 ```bash
-docker run --rm -v $PWD/results:/app/results -w /app/results veribts/btltl-baselines:1.3 \
-    /app/llmbt-runner run --project hard        # Table 3 "LTL–Direct"  (add --jobs 6 to parallelize)
-docker run --rm -v $PWD/results:/app/results -w /app/results veribts/btltl-baselines:1.3 \
-    /app/llmbt-runner run --project llmtask     # Table 4 "LTL–Direct"
-docker run --rm -v $PWD/results:/app/results -w /app/results veribts/btltl-baselines:1.3 \
-    /app/llmbt-runner run --dry-run             # execution plan only, no calls
+# pilot: single task, single run, single method
+docker run --rm -v $PWD/results:/app/results veribts/btltl-baselines:1.3 \
+    /app/llmbt-runner run --project hard --baselines ce --models gpt-4o --runs 1 --tasks ABC3 --out-root /app/results
+
+# full (add --jobs 6 to parallelize; --dry-run prints the plan, no calls)
+docker run --rm -v $PWD/results:/app/results veribts/btltl-baselines:1.3 \
+    /app/llmbt-runner run --project hard --out-root /app/results        # Table 3 "LTL–Direct"
+docker run --rm -v $PWD/results:/app/results veribts/btltl-baselines:1.3 \
+    /app/llmbt-runner run --project llmtask --out-root /app/results     # Table 4 "LTL–Direct"
+docker run --rm -v $PWD/results:/app/results veribts/btltl-baselines:1.3 \
+    /app/llmbt-runner run --project hard --out-root /app/results --dry-run
 ```
 
 **(f) MITL–TA — llmbt-uppaal**
 
 ```bash
-docker run --rm -v $PWD/results:/app/results -w /app/results veribts/btltl-baselines:1.3 \
-    /app/llmbt-uppaal run --bench hard          # Table 3 "MITL–TA"
-docker run --rm -v $PWD/results:/app/results -w /app/results veribts/btltl-baselines:1.3 \
-    /app/llmbt-uppaal run --bench task          # Table 4 "MITL–TA"
+# pilot: single task, single run, single method
+docker run --rm -v $PWD/results:/app/results veribts/btltl-baselines:1.3 \
+    /app/llmbt-uppaal run --bench hard --baselines ce --models gpt-4o --runs 1 --tasks ABC3 --out /app/results
+
+# full (--dry-run prints the job matrix, no calls)
+docker run --rm -v $PWD/results:/app/results veribts/btltl-baselines:1.3 \
+    /app/llmbt-uppaal run --bench hard --out /app/results          # Table 3 "MITL–TA"
+docker run --rm -v $PWD/results:/app/results veribts/btltl-baselines:1.3 \
+    /app/llmbt-uppaal run --bench task --out /app/results          # Table 4 "MITL–TA"
 ```
 
 ## 6. Statistics (reproducing Tables 2–4)
